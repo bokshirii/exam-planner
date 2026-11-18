@@ -1,0 +1,11 @@
+import 'dotenv/config';
+import express from 'express';
+import {z} from 'zod';
+import {analyze,MODEL} from './analyze';
+const app=express();app.disable('x-powered-by');app.use(express.json({limit:'20kb'}));
+app.use('/api',(req,res,next)=>{const origin=req.headers.origin;if(origin&&!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)){res.status(403).json({message:'로컬 앱에서만 접근할 수 있습니다.'});return;}next();});
+app.get('/api/status',(_req,res)=>res.json({model:MODEL,enabled:!!process.env.GEMINI_API_KEY&&process.env.GEMINI_FREE_TIER_CONFIRMED==='true'}));
+app.post('/api/analyze',async(req,res)=>{const parsed=z.object({scope:z.string().trim().min(1).max(8000)}).safeParse(req.body);if(!parsed.success){res.status(400).json({message:'공부 범위는 1~8,000자로 입력하세요.'});return;}res.json(await analyze(parsed.data.scope,{key:process.env.GEMINI_API_KEY,confirmed:process.env.GEMINI_FREE_TIER_CONFIRMED==='true'}));});
+app.use(express.static('dist'));
+app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{res.status(400).json({message:'요청을 처리할 수 없습니다. 입력을 확인하세요.'});});
+app.listen(Number(process.env.PORT)||3001,'127.0.0.1',()=>console.log('Exam Planner API: http://127.0.0.1:3001'));
