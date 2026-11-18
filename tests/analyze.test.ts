@@ -1,0 +1,7 @@
+import {it,expect,vi} from 'vitest';
+import {analyze} from '../server/analyze';
+it('works with no API key',async()=>{expect((await analyze('Chapter 1~2')).source).toBe('rules');});
+it('does not call external API without free-project confirmation',async()=>{const fetcher=vi.fn();expect((await analyze('무료 확인 없음',{key:'fake',fetcher})).source).toBe('rules');expect(fetcher).not.toHaveBeenCalled();});
+it('rejects malformed JSON and falls back',async()=>{const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify({candidates:[{content:{parts:[{text:'{"tasks": []}'}]}}]})));expect((await analyze('잘못된 응답',{key:'fake',confirmed:true,fetcher})).source).toBe('rules');});
+it('reuses successful analysis without another API call',async()=>{const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({tasks:[{title:'개념',estimatedMinutes:60,category:'개념 학습',priority:2,dependencies:[],uncertain:true}]})}]}}]})));const options={key:'fake',confirmed:true,fetcher};expect((await analyze('캐시 테스트',options)).source).toBe('gemini');expect((await analyze('캐시 테스트',options)).cached).toBe(true);expect(fetcher).toHaveBeenCalledTimes(1);});
+it('falls back on quota failure',async()=>{const fetcher=vi.fn().mockResolvedValue(new Response('',{status:429}));const result=await analyze('한도 테스트',{key:'fake',confirmed:true,fetcher});expect(result.source).toBe('rules');expect(result.message).toContain('무료 한도');});
